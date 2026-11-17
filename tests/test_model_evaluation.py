@@ -58,5 +58,5 @@ def test_grid_search_best_estimator_is_refitted_on_training_partition():
     )
 
     assert np.isfinite(report["ridge"])
-    assert models["ridge"].alpha in parameters["ridge"]
+    assert models["ridge"].alpha in parameters["ridge"]["alpha"]
     assert models["ridge"].coef_.shape == (features.shape[1],)
