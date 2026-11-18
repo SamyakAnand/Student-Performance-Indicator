@@ -30,6 +30,8 @@ The dataset is educational and observational. The model estimates a score from t
 
 The training code keeps model and hyperparameter selection separate from final holdout evaluation. The committed model artifact is not regenerated automatically by a code change; rerun the training pipeline to create an artifact using the revised evaluation protocol.
 
+**Cross-validation preprocessing caveat:** The current transformation component fits imputation, encoding, and scaling on the complete training partition before GridSearchCV runs. The holdout test partition remains untouched, but the cross-validation folds therefore share preprocessing statistics and their scores may be optimistic. A follow-up should place the preprocessing transformer inside the estimator Pipeline searched by GridSearchCV, so each fold fits preprocessing only on its own training split.
+
 ## Local setup
 
 Use Python 3.11 for the automated test environment.
