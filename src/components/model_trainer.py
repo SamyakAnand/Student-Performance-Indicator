@@ -2,6 +2,7 @@ import os
 import sys
 from dataclasses import dataclass
 
+from catboost import CatBoostRegressor
 from sklearn.ensemble import (
     AdaBoostRegressor,
     GradientBoostingRegressor,
@@ -11,7 +12,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
-from catboost import CatBoostRegressor
 
 from src.exception import CustomException
 from src.logger import logging
@@ -27,16 +27,8 @@ class ModelTrainer:
     def __init__(self):
         self.model_trainer_config = ModelTrainerConfig()
 
-    def initiate_model_trainer(self, train_array, test_array):
+    def initiate_model_trainer(self, X_train, X_test, y_train, y_test, preprocessor):
         try:
-            logging.info("Splitting training and holdout test data")
-            X_train, X_test, y_train, y_test = (
-                train_array[:, :-1],
-                test_array[:, :-1],
-                train_array[:, -1],
-                test_array[:, -1],
-            )
-
             models = {
                 "RandomForest": RandomForestRegressor(random_state=42),
                 "Decision Tree": DecisionTreeRegressor(random_state=42),
@@ -81,12 +73,15 @@ class ModelTrainer:
                 },
             }
 
-            # Model and hyperparameter selection must not inspect the holdout set.
+            logging.info(
+                "Selecting models with fold-local preprocessing and 3-fold CV"
+            )
             model_report = evaluate_models(
                 X_train=X_train,
                 y_train=y_train,
                 models=models,
                 param=params,
+                preprocessor=preprocessor,
             )
             best_model_name = max(model_report, key=model_report.get)
             best_cv_score = model_report[best_model_name]
@@ -101,18 +96,17 @@ class ModelTrainer:
                 best_cv_score,
             )
 
+            # The serialized estimator includes its fitted preprocessing pipeline.
             save_object(
                 file_path=self.model_trainer_config.trained_model_file_path,
                 obj=best_model,
             )
 
-            # The holdout set is evaluated only after model selection is complete.
+            # The holdout is first accessed after all model selection is complete.
             predicted = best_model.predict(X_test)
             holdout_r2 = r2_score(y_test, predicted)
-            logging.info(
-                "Final holdout R2 after model selection: %.4f", holdout_r2
-            )
+            logging.info("Final holdout R2 after model selection: %.4f", holdout_r2)
             return holdout_r2
 
-        except Exception as e:
-            raise CustomException(e, sys)
+        except Exception as exc:
+            raise CustomException(exc, sys) from exc

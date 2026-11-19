@@ -22,15 +22,15 @@ The dataset is educational and observational. The model estimates a score from t
 
 ## Workflow
 
-1. **Data ingestion:** read the source CSV and create reproducible train/test partitions.
-2. **Transformation:** impute missing values, encode categorical features, and scale numeric features.
-3. **Model selection:** compare regression estimators and tune hyperparameters using 3-fold cross-validation on the training partition.
-4. **Final evaluation:** use the held-out test partition only after model selection, for a final R² report.
-5. **Prediction:** load the saved preprocessing and model artifacts for the Flask interface.
+1. **Data ingestion:** read the source CSV and create reproducible training and holdout partitions.
+2. **Preprocessing:** impute missing values, encode categorical features, and scale numeric features inside a scikit-learn Pipeline.
+3. **Model selection:** compare regression estimators and tune hyperparameters using 3-fold cross-validation on the training partition. Each fold fits its own preprocessing steps, preventing validation-fold statistics from leaking into that fold's training process.
+4. **Final evaluation:** use the untouched holdout partition only after model selection, for a final R² report.
+5. **Prediction:** serialize the selected preprocessing-plus-estimator pipeline as artifacts/model.pkl and use that same pipeline for Flask predictions.
 
-The training code keeps model and hyperparameter selection separate from final holdout evaluation. The committed model artifact is not regenerated automatically by a code change; rerun the training pipeline to create an artifact using the revised evaluation protocol.
+The model-selection helper accepts only training features and targets; it has no holdout arguments. The holdout is accessed only after the winning pipeline has been refitted on the complete training partition.
 
-**Cross-validation preprocessing caveat:** The current transformation component fits imputation, encoding, and scaling on the complete training partition before GridSearchCV runs. The holdout test partition remains untouched, but the cross-validation folds therefore share preprocessing statistics and their scores may be optimistic. A follow-up should place the preprocessing transformer inside the estimator Pipeline searched by GridSearchCV, so each fold fits preprocessing only on its own training split.
+**Artifact compatibility:** PredictPipeline supports the older separate model.pkl and preprocessor.pkl files while a fresh training run is pending. New training runs save a single fitted pipeline in model.pkl. The checked-in model artifacts are not regenerated automatically by a code change; retrain before describing an existing artifact as the output of this revised protocol.
 
 ## Local setup
 
@@ -49,7 +49,7 @@ The focused test dependencies are separate from the full model-training stack:
     pip install -r requirements-test.txt
     pytest -q
 
-GitHub Actions runs the test suite on pull requests and pushes to main. The tests cover the model-selection helper using small synthetic regression datasets; they do not retrain every estimator in the full training grid.
+GitHub Actions runs the test suite on pull requests and pushes to main. The tests cover training-only model selection, fitted pipelines, and fold-local preprocessing on small synthetic regression datasets; they do not retrain every estimator in the full training grid.
 
 ## Repository structure
 
@@ -61,6 +61,7 @@ GitHub Actions runs the test suite on pull requests and pushes to main. The test
     │   ├── components/          # Ingestion, transformation, model training
     │   ├── pipeline/             # Training and prediction pipelines
     │   └── utils.py               # Serialization and model evaluation
+    ├── tests/                    # Focused regression tests
     ├── templates/                # Flask HTML templates
     ├── static/                   # Application styles
     ├── app.py                    # Flask entry point
@@ -71,8 +72,8 @@ GitHub Actions runs the test suite on pull requests and pushes to main. The test
 
 - This is an educational regression project, not an assessment or decision system for schools.
 - The dataset is a small, specific sample and may not generalize to other populations or educational settings.
-- Cross-validation scores and the final holdout score are dataset-dependent; no performance claim is made here without a fresh training run.
-- Existing serialized artifacts should be retrained and evaluated before being described as products of the revised selection protocol.
+- Cross-validation and holdout scores are dataset-dependent; no performance claim is made here without a fresh training run.
+- The committed model artifact has not been retrained under the revised fold-local preprocessing workflow.
 
 ## Dataset attribution
 
