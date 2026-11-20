@@ -1,13 +1,14 @@
 import inspect
 
 import numpy as np
+import pytest
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.datasets import make_regression
 from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.preprocessing import StandardScaler
 
-from src.utils import evaluate_models
+from src.utils import evaluate_models, select_best_model
 
 
 class FitSizeRecorder(BaseEstimator, TransformerMixin):
@@ -101,3 +102,26 @@ def test_preprocessor_is_fitted_inside_each_cross_validation_fold():
     # Three-fold CV fits on 60 rows per fold, then refits the winner on all 90.
     assert FitSizeRecorder.fit_sizes.count(60) >= 3
     assert 90 in FitSizeRecorder.fit_sizes
+
+
+def test_best_model_selection_accepts_scores_below_arbitrary_threshold():
+    name, score = select_best_model(
+        {"weak_but_finite": 0.42, "lower_score": 0.31}
+    )
+
+    assert name == "weak_but_finite"
+    assert score == pytest.approx(0.42)
+
+
+def test_best_model_selection_ignores_non_finite_scores():
+    name, score = select_best_model(
+        {"nan_model": np.nan, "infinite_model": np.inf, "finite_model": -0.2}
+    )
+
+    assert name == "finite_model"
+    assert score == pytest.approx(-0.2)
+
+
+def test_best_model_selection_requires_at_least_one_finite_score():
+    with pytest.raises(ValueError, match="No finite cross-validation scores"):
+        select_best_model({"nan_model": np.nan, "infinite_model": np.inf})

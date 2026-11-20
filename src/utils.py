@@ -1,3 +1,4 @@
+import math
 import os
 import sys
 
@@ -19,6 +20,30 @@ def save_object(file_path, obj):
 
     except Exception as exc:
         raise CustomException(exc, sys) from exc
+
+
+def select_best_model(model_report):
+    """Choose the highest finite CV score without imposing an arbitrary R2 cutoff.
+
+    Negative R2 values are valid model-selection results: they indicate that a
+    candidate performs worse than a constant-mean baseline, not that training
+    itself is invalid. Callers can report the score and decide separately
+    whether the model is suitable for a downstream use case.
+    """
+    finite_scores = {}
+    for model_name, score in model_report.items():
+        try:
+            numeric_score = float(score)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(numeric_score):
+            finite_scores[model_name] = numeric_score
+
+    if not finite_scores:
+        raise ValueError("No finite cross-validation scores were produced.")
+
+    best_model_name = max(finite_scores, key=finite_scores.get)
+    return best_model_name, finite_scores[best_model_name]
 
 
 def evaluate_models(X_train, y_train, models, param, preprocessor):

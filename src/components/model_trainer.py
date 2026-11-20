@@ -15,7 +15,7 @@ from xgboost import XGBRegressor
 
 from src.exception import CustomException
 from src.logger import logging
-from src.utils import evaluate_models, save_object
+from src.utils import evaluate_models, save_object, select_best_model
 
 
 @dataclass
@@ -83,12 +83,7 @@ class ModelTrainer:
                 param=params,
                 preprocessor=preprocessor,
             )
-            best_model_name = max(model_report, key=model_report.get)
-            best_cv_score = model_report[best_model_name]
-
-            if best_cv_score < 0.6:
-                raise CustomException("No best model found", sys)
-
+            best_model_name, best_cv_score = select_best_model(model_report)
             best_model = models[best_model_name]
             logging.info(
                 "Selected %s using 3-fold training CV (mean R2=%.4f)",
